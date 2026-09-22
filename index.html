@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>2048 · 数字方块</title>
+  <style>
+    :root { --board: min(88vw, 460px); --gap: 10px; --ink: #17324d; --muted: #60758a; --accent: #1769aa; --orange: #ef8c3b; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px 14px; color: var(--ink); font-family: "Segoe UI", "Microsoft YaHei", sans-serif; background: radial-gradient(circle at 20% 0%, #f7fcff, #dcecf8 70%); }
+    .app { width: min(100%, 560px); }
+    header { display: flex; align-items: flex-end; justify-content: space-between; gap: 14px; margin-bottom: 18px; }
+    h1 { margin: 0; font-size: clamp(2.7rem, 9vw, 4.5rem); line-height: .85; letter-spacing: -4px; }
+    .tagline { margin: 10px 0 0; color: var(--muted); font-size: .98rem; }
+    .scores { display: flex; gap: 8px; }
+    .score-box { min-width: 88px; padding: 9px 13px; border-radius: 10px; color: #fff; text-align: center; background: #1769aa; }
+    .score-box small { display: block; font-size: .72rem; text-transform: uppercase; letter-spacing: 1px; opacity: .9; }
+    .score-box strong { display: block; font-size: 1.45rem; line-height: 1.15; }
+    .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; gap: 12px; }
+    .hint { margin: 0; color: var(--muted); font-size: .9rem; }
+    button { border: 0; border-radius: 9px; color: #fff; background: var(--accent); padding: 11px 16px; font: inherit; font-weight: 700; cursor: pointer; transition: transform .12s, filter .12s; }
+    button.secondary { background: var(--orange); } button:disabled { opacity: .5; cursor: not-allowed; }
+    button:hover { filter: brightness(1.08); } button:active { transform: scale(.97); }
+    .growth-panel { margin: 0 0 14px; padding: 12px 14px; border: 1px solid #b7d7ec; border-radius: 11px; background: #f4fbff; }
+    .growth-line { display: flex; justify-content: space-between; gap: 10px; color: #245b83; font-size: .88rem; font-weight: 700; }
+    .progress-track { height: 9px; margin-top: 8px; overflow: hidden; border-radius: 99px; background: #cfe4f2; }
+    .progress-bar { width: 0; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #ef8c3b, #1769aa); transition: width .2s ease; }
+    .achievement-toast { position: fixed; top: 22px; left: 50%; z-index: 30; padding: 11px 18px; border: 2px solid #f4b05e; border-radius: 999px; color: #7c4a1f; background: #fff7e9; box-shadow: 0 8px 24px #174d7930; font-weight: 800; opacity: 0; pointer-events: none; transform: translate(-50%, -18px); }
+    .achievement-toast.show { animation: toast-pop 2.2s ease both; }
+    .confetti-layer { position: fixed; inset: 0; z-index: 25; overflow: hidden; pointer-events: none; }
+    .confetti-piece { position: absolute; top: -16px; width: 9px; height: 15px; border-radius: 2px; animation: confetti-fall 1.8s cubic-bezier(.2,.7,.3,1) forwards; }
+    @keyframes toast-pop { 0% { opacity: 0; transform: translate(-50%, -18px) scale(.9); } 15%, 75% { opacity: 1; transform: translate(-50%, 0) scale(1); } 100% { opacity: 0; transform: translate(-50%, -8px) scale(.96); } }
+    @keyframes confetti-fall { 0% { opacity: 1; transform: translate3d(0, -16px, 0) rotate(0deg); } 100% { opacity: 0; transform: translate3d(var(--drift), 105vh, 0) rotate(720deg); } }
+    .player-panel, .leaderboard { margin: 0 0 14px; padding: 12px 14px; border: 1px solid #b7d7ec; border-radius: 11px; background: #f4fbff; }
+    .player-panel { display: flex; align-items: center; gap: 10px; }
+    .player-panel label { color: #245b83; font-size: .9rem; font-weight: 700; white-space: nowrap; }
+    .player-panel input { min-width: 0; flex: 1; border: 1px solid #a6c9e0; border-radius: 8px; padding: 9px 10px; color: var(--ink); background: #fff; font: inherit; }
+    .leaderboard h2 { margin: 0; color: #245b83; font-size: 1rem; }
+    .leaderboard-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .leaderboard-note { margin: 4px 0 8px; color: var(--muted); font-size: .74rem; }
+    .ranking-list { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; }
+    .ranking-row { display: grid; grid-template-columns: 34px 1fr auto; gap: 8px; align-items: center; padding: 7px 9px; border-radius: 7px; color: #34566f; background: #e6f2f9; font-size: .86rem; }
+    .ranking-row:first-child { color: #7c4a1f; background: #fff0dc; }
+    .rank-number { font-weight: 800; } .rank-score { font-weight: 800; }
+    .ranking-empty { padding: 8px; color: var(--muted); font-size: .82rem; text-align: center; }
+    .submit-score { margin-top: 8px; background: var(--orange); }
+    .rank-status { min-height: 1.1em; margin: 7px 0 0; color: #547087; font-size: .78rem; }
+    .board-wrap { position: relative; width: var(--board); height: var(--board); padding: var(--gap); border-radius: 13px; background: #2c6894; box-shadow: 0 12px 28px #2c689426; }
+    .board { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--gap); width: 100%; height: 100%; }
+    .cell { display: grid; place-items: center; border-radius: 9px; background: #8db3cf; font-size: clamp(1.55rem, 7vw, 2.7rem); font-weight: 800; user-select: none; }
+    .tile-number { line-height: .95; } .tile-label { margin-top: 5px; font-size: clamp(.58rem, 2.2vw, .82rem); font-weight: 700; letter-spacing: .04em; }
+    .tile { color: #17324d; background: #edf6fc; }
+    .tile[data-value="2"] { background: #edf6fc; } .tile[data-value="4"] { background: #d7ebf8; }
+    .tile[data-value="8"] { color: #fff; background: #efb15e; } .tile[data-value="16"] { color: #fff; background: #ef9b48; }
+    .tile[data-value="32"] { color: #fff; background: #ef8c3b; } .tile[data-value="64"] { color: #fff; background: #df6d2f; }
+    .tile[data-value="128"] { color: #fff; background: #2679b5; font-size: clamp(1.25rem, 5vw, 2.2rem); }
+    .tile[data-value="256"] { color: #fff; background: #1d6093; font-size: clamp(1.25rem, 5vw, 2.2rem); }
+    .tile[data-value="512"], .tile[data-value="1024"], .tile[data-value="2048"] { color: #fff; background: #174d79; font-size: clamp(1.08rem, 4.5vw, 2rem); }
+    .overlay { position: absolute; inset: 0; display: grid; place-items: center; border-radius: 13px; background: #e9f5fcde; }
+    .overlay[hidden] { display: none; }
+    .message { text-align: center; } .message h2 { margin: 0 0 12px; font-size: 2rem; color: #174d79; }
+    .instructions { margin: 16px 0 0; color: var(--muted); font-size: .86rem; text-align: center; }
+    @media (max-width: 420px) { header { align-items: flex-start; flex-direction: column; } .scores { width: 100%; } .score-box { flex: 1; } .toolbar { align-items: flex-start; flex-direction: column; } }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header>
+      <div><h1>SWUFE 2048</h1><p class="tagline">从新生到校园达人</p></div>
+      <div class="scores"><div class="score-box"><small>分数</small><strong id="score">0</strong></div><div class="score-box"><small>最高分</small><strong id="best">0</strong></div></div>
+    </header>
+    <div class="toolbar"><p class="hint">使用键盘方向键移动方块</p><div><button id="undo" class="secondary" type="button" disabled>撤销一步</button> <button id="start-game" type="button">开始游戏</button></div></div>
+    <section class="player-panel" aria-label="玩家信息"><label for="player-name">玩家昵称</label><input id="player-name" maxlength="20" placeholder="例如：小王" autocomplete="nickname" /></section>
+    <section class="growth-panel" aria-label="校园成长进度"><div class="growth-line"><span id="growth-goal">当前目标：合成“课程”</span><span id="growth-value">0 / 2048</span></div><div class="progress-track"><div id="progress-bar" class="progress-bar"></div></div></section>
+    <section class="board-wrap" aria-label="2048 游戏区">
+      <div id="board" class="board"></div>
+      <div id="overlay" class="overlay" hidden><div class="message"><h2 id="message-title">游戏结束</h2><button id="submit-score" class="submit-score" type="button">提交本局分数</button><p id="rank-status" class="rank-status"></p><button id="restart" type="button">重新开始</button></div></div>
+    </section>
+    <section class="leaderboard" aria-label="玩家排行榜"><div class="leaderboard-head"><h2>玩家排行榜 · 前十名</h2></div><p class="leaderboard-note">输入昵称，游戏结束后提交分数。当前未配置 Supabase 时保存为本机排行榜。</p><ol id="ranking-list" class="ranking-list"></ol></section>
+    <p class="instructions">相同数字碰撞时会合并。每次移动后会出现一个新方块。</p>
+  </main>
+  <div id="achievement-toast" class="achievement-toast" role="status" aria-live="polite"></div>
+  <div id="confetti-layer" class="confetti-layer" aria-hidden="true"></div>
+  <script>
+    const SIZE = 4;
+    // 部署到 GitHub Pages 后，填入 Supabase 项目 URL 和 anon public key，即可启用跨设备共享排行榜。
+    const SUPABASE_URL = 'https://gurbpmsoqdyysyzsgyrf.supabase.co/rest/v1/';
+    const SUPABASE_ANON_KEY = 'sb_publishable_y_hk9zAd3rcqPvIKxBMnWw_S9a9l7x_';
+    let grid = [], score = 0, best = Number(localStorage.getItem('2048-best') || 0), active = false, history = [], won = false, moveCount = 0, unlockedAchievements = new Set(), scoreSubmitted = false;
+    const stageLabels = { 2: '新生', 4: '课程', 8: '学分', 16: '社团', 32: '实践', 64: '奖学金', 128: '优秀学生', 256: '毕业生', 512: '校园精英', 1024: '校园达人', 2048: '校园传奇' };
+    const milestones = Object.keys(stageLabels).map(Number).sort((a, b) => a - b);
+    const achievementRules = [
+      { id: 'merge64', label: '首次合成 64', test: highest => highest >= 64 },
+      { id: 'reach512', label: '达到 512', test: highest => highest >= 512 },
+      { id: 'reach2048', label: '达到 2048', test: highest => highest >= 2048 },
+      { id: 'score5000', label: '单局获得 5000 分', test: () => score >= 5000 },
+      { id: 'combo5', label: '连续完成 5 次移动', test: () => moveCount >= 5 }
+    ];
+    const boardEl = document.querySelector('#board'), scoreEl = document.querySelector('#score'), bestEl = document.querySelector('#best');
+    const overlay = document.querySelector('#overlay'), messageTitle = document.querySelector('#message-title'), undoEl = document.querySelector('#undo'), playerNameEl = document.querySelector('#player-name'), submitScoreEl = document.querySelector('#submit-score'), rankStatusEl = document.querySelector('#rank-status'), rankingListEl = document.querySelector('#ranking-list');
+    const growthGoalEl = document.querySelector('#growth-goal'), growthValueEl = document.querySelector('#growth-value'), progressBarEl = document.querySelector('#progress-bar');
+    const toastEl = document.querySelector('#achievement-toast'), confettiLayerEl = document.querySelector('#confetti-layer');
+    let leaderboard = [];
+
+    function emptyGrid() { return Array.from({ length: SIZE }, () => Array(SIZE).fill(0)); }
+    function emptyCells() { const cells = []; grid.forEach((row, r) => row.forEach((v, c) => { if (!v) cells.push([r, c]); })); return cells; }
+    function addRandomTile() { const cells = emptyCells(); if (!cells.length) return; const [r, c] = cells[Math.floor(Math.random() * cells.length)]; grid[r][c] = Math.random() < .9 ? 2 : 4; }
+    function startGame() { grid = emptyGrid(); score = 0; active = true; won = false; history = []; moveCount = 0; unlockedAchievements = new Set(); scoreSubmitted = false; overlay.hidden = true; messageTitle.textContent = '游戏结束'; rankStatusEl.textContent = ''; submitScoreEl.disabled = false; submitScoreEl.textContent = '提交本局分数'; toastEl.classList.remove('show'); confettiLayerEl.innerHTML = ''; addRandomTile(); addRandomTile(); render(); }
+    function render() {
+      boardEl.innerHTML = '';
+      grid.flat().forEach(value => { const cell = document.createElement('div'); cell.className = value ? 'cell tile' : 'cell'; if (value) { cell.dataset.value = value; const number = document.createElement('span'); number.className = 'tile-number'; number.textContent = value; const label = document.createElement('span'); label.className = 'tile-label'; label.textContent = stageLabels[value] || '成长'; cell.append(number, label); } boardEl.appendChild(cell); });
+      scoreEl.textContent = score; bestEl.textContent = best; undoEl.disabled = history.length === 0;
+      const highest = Math.max(0, ...grid.flat()); const next = milestones.find(value => value > highest) || 2048; const goalName = stageLabels[next];
+      growthGoalEl.textContent = highest >= 2048 ? '成长目标：已成为“校园达人”' : `当前目标：合成“${goalName}”`;
+      growthValueEl.textContent = `${highest} / 2048`; progressBarEl.style.width = `${Math.min(100, highest / 2048 * 100)}%`;
+    }
+    function celebrateAchievement(label) {
+      toastEl.textContent = `🎉 成就达成：${label}`;
+      toastEl.classList.remove('show'); void toastEl.offsetWidth; toastEl.classList.add('show');
+      confettiLayerEl.innerHTML = '';
+      const colors = ['#ef8c3b', '#1769aa', '#f4c95d', '#2c9cdb', '#ef6f6c'];
+      for (let i = 0; i < 42; i++) { const piece = document.createElement('span'); piece.className = 'confetti-piece'; piece.style.left = `${Math.random() * 100}%`; piece.style.background = colors[i % colors.length]; piece.style.setProperty('--drift', `${Math.round((Math.random() - .5) * 220)}px`); piece.style.animationDelay = `${Math.random() * .35}s`; piece.style.transform = `rotate(${Math.random() * 180}deg)`; confettiLayerEl.appendChild(piece); }
+      setTimeout(() => { confettiLayerEl.innerHTML = ''; }, 2300);
+    }
+    function checkAchievements(highest) { for (const rule of achievementRules) { if (!unlockedAchievements.has(rule.id) && rule.test(highest)) { unlockedAchievements.add(rule.id); celebrateAchievement(rule.label); } } }
+    function hasOnlineLeaderboard() { return Boolean(SUPABASE_URL && SUPABASE_ANON_KEY); }
+    function getPlayerName() { const name = playerNameEl.value.trim().slice(0, 20); return name || '匿名玩家'; }
+    function readLocalLeaderboard() { try { const value = JSON.parse(localStorage.getItem('swufe-2048-leaderboard') || '[]'); return Array.isArray(value) ? value : []; } catch { return []; } }
+    function renderLeaderboard(entries = leaderboard) { rankingListEl.innerHTML = ''; const top = [...entries].sort((a, b) => Number(b.score) - Number(a.score)).slice(0, 10); if (!top.length) { rankingListEl.innerHTML = '<li class="ranking-empty">还没有成绩，来成为第一名吧！</li>'; return; } top.forEach((entry, index) => { const row = document.createElement('li'); row.className = 'ranking-row'; const rank = document.createElement('span'); rank.className = 'rank-number'; rank.textContent = `#${index + 1}`; const name = document.createElement('span'); name.textContent = entry.player_name; const points = document.createElement('span'); points.className = 'rank-score'; points.textContent = Number(entry.score).toLocaleString(); row.append(rank, name, points); rankingListEl.appendChild(row); }); }
+    function restApiBase() { return SUPABASE_URL.replace(/\/+$/, '').replace(/\/rest\/v1$/, ''); }
+    async function loadLeaderboard() { if (!hasOnlineLeaderboard()) { leaderboard = readLocalLeaderboard(); renderLeaderboard(); return; } try { const base = restApiBase(); const response = await fetch(`${base}/rest/v1/scores?select=player_name,score,created_at&order=score.desc,created_at.asc&limit=10`, { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }); if (!response.ok) throw new Error('排行榜读取失败'); leaderboard = await response.json(); renderLeaderboard(); } catch { leaderboard = readLocalLeaderboard(); renderLeaderboard(); } }
+    async function submitScore() { if (scoreSubmitted) return; const entry = { player_name: getPlayerName(), score }; const local = [...readLocalLeaderboard(), entry].sort((a, b) => Number(b.score) - Number(a.score)).slice(0, 10); localStorage.setItem('swufe-2048-leaderboard', JSON.stringify(local)); leaderboard = local; renderLeaderboard(); scoreSubmitted = true; submitScoreEl.disabled = true; submitScoreEl.textContent = '已提交'; rankStatusEl.textContent = hasOnlineLeaderboard() ? '正在同步在线排行榜…' : '已保存到本机排行榜'; if (hasOnlineLeaderboard()) { try { const base = restApiBase(); const response = await fetch(`${base}/rest/v1/scores`, { method: 'POST', headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify(entry) }); if (!response.ok) { const detail = await response.text(); throw new Error(`提交失败（${response.status}）：${detail.slice(0, 120)}`); } rankStatusEl.textContent = '已提交到在线排行榜'; await loadLeaderboard(); } catch (error) { rankStatusEl.textContent = `${error.message || '在线提交失败'}，已保留本机记录`; } } }
+    function slide(line) { const values = line.filter(Boolean); const result = []; for (let i = 0; i < values.length; i++) { if (values[i] === values[i + 1]) { const merged = values[i] * 2; result.push(merged); score += merged; i++; } else result.push(values[i]); } while (result.length < SIZE) result.push(0); return result; }
+    function move(direction) {
+      if (!active) return; const before = JSON.stringify(grid); const scoreBefore = score;
+      if (direction === 'left') grid = grid.map(row => slide(row));
+      if (direction === 'right') grid = grid.map(row => slide([...row].reverse()).reverse());
+      if (direction === 'up' || direction === 'down') { for (let c = 0; c < SIZE; c++) { let line = grid.map(row => row[c]); if (direction === 'down') line.reverse(); line = slide(line); if (direction === 'down') line.reverse(); line.forEach((v, r) => grid[r][c] = v); } }
+      if (JSON.stringify(grid) === before) return;
+      history.push({ grid: JSON.parse(before), score: scoreBefore, won });
+      moveCount += 1; addRandomTile(); if (score > best) { best = score; localStorage.setItem('2048-best', best); } render();
+      checkAchievements(Math.max(0, ...grid.flat()));
+      if (!won && grid.flat().includes(2048)) { won = true; active = false; messageTitle.textContent = '恭喜你，达到 2048！'; overlay.hidden = false; render(); return; }
+      if (!canMove()) endGame();
+    }
+    function canMove() { if (emptyCells().length) return true; for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) if (grid[r][c] === grid[r + 1]?.[c] || grid[r][c] === grid[r]?.[c + 1]) return true; return false; }
+    function endGame() { active = false; messageTitle.textContent = '游戏结束'; overlay.hidden = false; render(); }
+    function undo() { if (!history.length) return; const previous = history.pop(); grid = previous.grid; score = previous.score; won = previous.won; active = true; overlay.hidden = true; render(); }
+    document.addEventListener('keydown', e => { const keys = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' }; if (keys[e.key]) { e.preventDefault(); move(keys[e.key]); } });
+    document.querySelector('#start-game').addEventListener('click', startGame); document.querySelector('#restart').addEventListener('click', startGame); undoEl.addEventListener('click', undo); submitScoreEl.addEventListener('click', submitScore);
+    leaderboard = readLocalLeaderboard(); renderLeaderboard(); loadLeaderboard(); startGame();
+  </script>
+</body>
+</html>
